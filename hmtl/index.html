@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!--Yazı tipi için aşağıdaki link-->
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="style.css">
+        <title>Restoran Menüsü</title>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Ana kategorileri yükle
+                loadMainCategories();
+                
+                // Admin durumunu kontrol et
+                checkAdminStatus();
+            });
+            
+            // Admin durumunu kontrol et
+            function checkAdminStatus() {
+                const isAdmin = localStorage.getItem('isAdmin');
+                const adminStatus = document.getElementById('adminStatus');
+                const loginForm = document.getElementById('adminLoginForm');
+                
+                if (isAdmin === 'true') {
+                    if (adminStatus) adminStatus.style.display = 'block';
+                    if (loginForm) loginForm.style.display = 'none';
+                } else {
+                    if (adminStatus) adminStatus.style.display = 'none';
+                    if (loginForm) loginForm.style.display = 'block';
+                }
+            }
+            
+            // Ana kategorileri yükle
+            function loadMainCategories() {
+                fetch('/api/kategoriler')
+                    .then(response => response.json())
+                    .then(data => {
+                        const menuLinks = document.getElementById('menuLinks');
+                        menuLinks.innerHTML = '';
+                        
+                        // Ana kategoriler için butonlar oluştur
+                        data.forEach(category => {
+                            const categoryLink = document.createElement('a');
+                            categoryLink.href = `category.html?id=${category.id}`;
+                            categoryLink.className = 'menu-button';
+                            categoryLink.textContent = category.ad;
+                            menuLinks.appendChild(categoryLink);
+                        });
+                        
+                        // Admin girişi butonu ekle
+                        const adminLink = document.createElement('a');
+                        adminLink.href = 'admin.html';
+                        adminLink.className = 'menu-button admin-button';
+                        adminLink.textContent = 'Admin Paneli';
+                        menuLinks.appendChild(adminLink);
+                    })
+                    .catch(error => {
+                        console.error('Kategori yükleme hatası:', error);
+                        document.getElementById('menuLinks').innerHTML = 
+                            '<p class="error-message">Kategoriler yüklenirken bir hata oluştu.</p>';
+                    });
+            }
+        </script>
+    </head>
+    <body>
+        <div class="menu">
+            <h1>RESTORAN MENÜSÜ</h1>
+            
+            <div id="menuLinks" class="menulink">
+                <p>Menü yükleniyor...</p>
+            </div>
+
+        </div>
+    </body>
+</html>

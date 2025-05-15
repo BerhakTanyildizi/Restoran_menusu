@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Paneli - Restoran Menüsü</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Admin login panel corner styling */
+        .login-corner-box {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            z-index: 1000;
+        }
+        
+        .login-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .login-header h3 {
+            margin: 0;
+            color: var(--primary-color);
+        }
+        
+        .close-login {
+            cursor: pointer;
+            color: var(--text-light);
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .login-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            z-index: 999;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Admin durumunu kontrol et
+            checkAdminStatus();
+            
+            // Login form event listener
+            document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                loginAdmin();
+            });
+            
+            // Login toggle button
+            const loginToggle = document.getElementById('loginToggle');
+            const loginBox = document.getElementById('loginCornerBox');
+            const closeButton = document.getElementById('closeLogin');
+            
+            loginToggle.addEventListener('click', function() {
+                loginBox.style.display = loginBox.style.display === 'none' ? 'block' : 'none';
+                loginToggle.style.display = 'none';
+            });
+            
+            closeButton.addEventListener('click', function() {
+                loginBox.style.display = 'none';
+                loginToggle.style.display = 'flex';
+            });
+        });
+        
+        // Admin durumunu kontrol et
+        function checkAdminStatus() {
+            const isAdmin = localStorage.getItem('isAdmin');
+            const adminPanel = document.getElementById('adminPanel');
+            const loginCornerBox = document.getElementById('loginCornerBox');
+            const loginToggle = document.getElementById('loginToggle');
+            const adminStatus = document.getElementById('adminStatus');
+            
+            if (isAdmin === 'true') {
+                adminPanel.style.display = 'block';
+                loginCornerBox.style.display = 'none';
+                loginToggle.style.display = 'none';
+                adminStatus.style.display = 'block';
+                
+                // Kategori verilerini yükle
+                loadAllCategories();
+            } else {
+                adminPanel.style.display = 'none';
+                loginCornerBox.style.display = 'none';
+                loginToggle.style.display = 'flex';
+                adminStatus.style.display = 'none';
+            }
+        }
+        
+        // Admin girişi
+        function loginAdmin() {
+            const username = document.getElementById('adminUsername').value;
+            const password = document.getElementById('adminPassword').value;
+            
+            // Basit doğrulama
+            if (username === 'admin' && password === 'admin123') {
+                localStorage.setItem('isAdmin', 'true');
+                checkAdminStatus();
+                showMessage('Başarıyla giriş yapıldı!', 'success');
+            } else {
+                showMessage('Kullanıcı adı veya şifre hatalı!', 'error');
+            }
+        }
+        
+        // Admin çıkışı
+        function logoutAdmin() {
+            localStorage.removeItem('isAdmin');
+            checkAdminStatus();
+            showMessage('Çıkış yapıldı.', 'success');
+        }
+        
+        // Tüm kategorileri ve ürünleri yükle
+        function loadAllCategories() {
+            fetch('/api/kategoriler')
+                .then(response => response.json())
+                .then(categories => {
+                    const categoryList = document.getElementById('categoryList');
+                    categoryList.innerHTML = '';
+                    
+                    categories.forEach(category => {
+                        const categorySection = document.createElement('div');
+                        categorySection.className = 'category-section';
+                        
+                        const categoryTitle = document.createElement('h2');
+                        categoryTitle.textContent = category.ad;
+                        categorySection.appendChild(categoryTitle);
+                        
+                        category.alt_kategoriler.forEach(subcategory => {
+                            const subcategoryDiv = document.createElement('div');
+                            subcategoryDiv.className = 'subcategory';
+                            
+                            const subcategoryTitle = document.createElement('h3');
+                            subcategoryTitle.textContent = subcategory.ad;
+                            subcategoryDiv.appendChild(subcategoryTitle);
+                            
+                            const productsContainer = document.createElement('div');
+                            productsContainer.id = `products-${subcategory.id}`;
+                            productsContainer.innerHTML = '<p>Yükleniyor...</p>';
+                            subcategoryDiv.appendChild(productsContainer);
+                            
+                            categorySection.appendChild(subcategoryDiv);
+                            
+                            // Ürünleri yükle
+                            loadProducts(subcategory.id);
+                        });
+                        
+                        categoryList.appendChild(categorySection);
+                    });
+                })
+                .catch(error => {
+                    console.error('Kategori yükleme hatası:', error);
+                    document.getElementById('categoryList').innerHTML = 
+                        '<p class="error-message">Kategoriler yüklenirken bir hata oluştu.</p>';
+                });
+        }
+        
+        // Ürünleri yükle
+        function loadProducts(categoryId) {
+            fetch(`/api/urunler/${categoryId}`)
+                .then(response => response.json())
+                .then(products => {
+                    const productsContainer = document.getElementById(`products-${categoryId}`);
+                    productsContainer.innerHTML = '';
+                    
+                    if (products.length === 0) {
+                        productsContainer.innerHTML = '<p>Bu kategoride ürün bulunmamaktadır.</p>';
+                        return;
+                    }
+                    
+                    products.forEach(product => {
+                        const productDiv = document.createElement('div');
+                        productDiv.className = 'menu-secenek';
+                        
+                        productDiv.innerHTML = `
+                            <img src="${product.resim_url}" alt="${product.ad}" onerror="this.src='https://via.placeholder.com/120x120?text=Resim+Bulunamadı'">
+                            <div class="item-info">
+                                <span>${product.ad}</span>
+                                <strong id="price-${product.id}">${product.fiyat} TL</strong>
+                                <p>${product.aciklama || ''}</p>
+                                
+                                <div class="edit-price-form">
+                                    <input type="number" id="new-price-${product.id}" min="1" step="1" value="${product.fiyat}">
+                                    <button type="button" class="update-button" onclick="updatePrice(${product.id})">Güncelle</button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        productsContainer.appendChild(productDiv);
+                    });
+                })
+                .catch(error => {
+                    console.error(`Ürünleri yükleme hatası: ${error}`);
+                    document.getElementById(`products-${categoryId}`).innerHTML = 
+                        '<p class="error-message">Ürünler yüklenirken bir hata oluştu.</p>';
+                });
+        }
+        
+        // Fiyat güncelleme
+        function updatePrice(productId) {
+            const newPrice = document.getElementById(`new-price-${productId}`).value;
+            
+            if (!newPrice || isNaN(newPrice) || newPrice <= 0) {
+                showMessage('Lütfen geçerli bir fiyat girin!', 'error');
+                return;
+            }
+            
+            fetch(`/api/urun/update/${productId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ fiyat: parseFloat(newPrice) })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Fiyat güncellenirken bir hata oluştu');
+                }
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById(`price-${productId}`).textContent = `${newPrice} TL`;
+                showMessage(`${data.ad} ürününün fiyatı başarıyla güncellendi!`, 'success');
+            })
+            .catch(error => {
+                console.error('Fiyat güncelleme hatası:', error);
+                showMessage('Fiyat güncellenirken bir hata oluştu.', 'error');
+            });
+        }
+        
+        // Mesaj gösterme
+        function showMessage(message, type) {
+            const messagesContainer = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type === 'success' ? 'success-message' : 'error-message';
+            messageDiv.textContent = message;
+            
+            messagesContainer.appendChild(messageDiv);
+            
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 3000);
+        }
+    </script>
+</head>
+<body>
+    <div class="menu">
+        <h1>Admin Paneli</h1>
+        
+        <div class="admin-header">
+            <div id="adminStatus" style="display: none;">
+                <div class="login-status">
+                    Admin olarak giriş yapıldı
+                    <button onclick="logoutAdmin()" class="update-button">Çıkış</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mesajlar için alan -->
+        <div id="messages"></div>
+        
+        <!-- Admin panel içeriği -->
+        <div id="adminPanel" style="display: none;">
+            <div class="admin-section">
+                <h2>Ürün Fiyatlarını Yönet</h2>
+                <p>Aşağıdaki ürünlerin fiyatlarını güncelleyebilirsiniz.</p>
+            </div>
+            
+            <!-- Kategoriler ve ürünler burada listelenecek -->
+            <div id="categoryList">
+                <p>Yükleniyor...</p>
+            </div>
+        </div>
+        
+        <a href="index.html" class="back-link">← Ana Sayfaya Dön</a>
+    </div>
+    
+    <!-- Admin login button -->
+    <button id="loginToggle" class="login-toggle">👤</button>
+    
+    <!-- Corner login box -->
+    <div id="loginCornerBox" class="login-corner-box" style="display: none;">
+        <div class="login-header">
+            <h3>Admin Girişi</h3>
+            <span id="closeLogin" class="close-login">&times;</span>
+        </div>
+        
+        <!-- Admin giriş formu -->
+        <form id="adminLoginForm" class="admin-form">
+            <div>
+                <label for="adminUsername">Kullanıcı Adı:</label>
+                <input type="text" id="adminUsername" required>
+            </div>
+            <div>
+                <label for="adminPassword">Şifre:</label>
+                <input type="password" id="adminPassword" required>
+            </div>
+            <button type="submit">Giriş Yap</button>
+            
+            <div class="login-help">
+                <p><strong>Not:</strong> Kullanıcı adı: <code>admin</code>, Şifre: <code>admin123</code></p>
+            </div>
+        </form>
+    </div>
+</body>
+</html> 

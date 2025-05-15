@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kategori Menüsü</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // URL'den kategori ID'sini al
+            const urlParams = new URLSearchParams(window.location.search);
+            const categoryId = urlParams.get('id');
+            
+            if (categoryId) {
+                // Kategori bilgilerini yükle
+                loadCategory(categoryId);
+                
+                // Admin durumunu kontrol et
+                checkAdminStatus();
+            } else {
+                document.getElementById('categoryContent').innerHTML = 
+                    '<p class="error-message">Geçersiz kategori.</p>';
+            }
+        });
+        
+        // Admin durumunu kontrol et
+        function checkAdminStatus() {
+            const isAdmin = localStorage.getItem('isAdmin');
+            
+            // Eğer admin girişi yapılmışsa, düzenleme formlarını göster
+            if (isAdmin === 'true') {
+                document.querySelectorAll('.edit-price-form').forEach(form => {
+                    form.style.display = 'flex';
+                });
+            } else {
+                document.querySelectorAll('.edit-price-form').forEach(form => {
+                    form.style.display = 'none';
+                });
+            }
+        }
+        
+        // Kategori bilgilerini yükle
+        function loadCategory(categoryId) {
+            fetch(`/api/kategori/${categoryId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Kategori bulunamadı');
+                    }
+                    return response.json();
+                })
+                .then(category => {
+                    // Kategori başlığını güncelle
+                    document.getElementById('categoryTitle').textContent = category.ad;
+                    document.title = `${category.ad} - Restoran Menüsü`;
+                    
+                    // Alt kategorileri yükle
+                    loadSubcategories(categoryId);
+                })
+                .catch(error => {
+                    console.error('Kategori yükleme hatası:', error);
+                    document.getElementById('categoryContent').innerHTML = 
+                        '<p class="error-message">Kategori yüklenirken bir hata oluştu.</p>';
+                });
+        }
+        
+        // Alt kategorileri yükle
+        function loadSubcategories(categoryId) {
+            fetch(`/api/kategoriler`)
+                .then(response => response.json())
+                .then(categories => {
+                    // Ana kategoriyi bul
+                    const mainCategory = categories.find(cat => cat.id == categoryId);
+                    
+                    if (!mainCategory) {
+                        throw new Error('Kategori bulunamadı');
+                    }
+                    
+                    const subcategories = mainCategory.alt_kategoriler;
+                    const categoryContent = document.getElementById('categoryContent');
+                    categoryContent.innerHTML = '';
+                    
+                    // Alt kategorileri ekle
+                    subcategories.forEach(subcategory => {
+                        const subcategoryDiv = document.createElement('div');
+                        subcategoryDiv.className = 'subcategory';
+                        
+                        const subcategoryTitle = document.createElement('h3');
+                        subcategoryTitle.textContent = subcategory.ad;
+                        subcategoryDiv.appendChild(subcategoryTitle);
+                        
+                        // Ürünler için konteyner
+                        const productsContainer = document.createElement('div');
+                        productsContainer.id = `products-${subcategory.id}`;
+                        productsContainer.innerHTML = '<p>Yükleniyor...</p>';
+                        subcategoryDiv.appendChild(productsContainer);
+                        
+                        categoryContent.appendChild(subcategoryDiv);
+                        
+                        // Alt kategori için ürünleri yükle
+                        loadProducts(subcategory.id);
+                    });
+                })
+                .catch(error => {
+                    console.error('Alt kategorileri yükleme hatası:', error);
+                    document.getElementById('categoryContent').innerHTML = 
+                        '<p class="error-message">Alt kategoriler yüklenirken bir hata oluştu.</p>';
+                });
+        }
+        
+        // Ürünleri yükle
+        function loadProducts(categoryId) {
+            fetch(`/api/urunler/${categoryId}`)
+                .then(response => response.json())
+                .then(products => {
+                    const productsContainer = document.getElementById(`products-${categoryId}`);
+                    productsContainer.innerHTML = '';
+                    
+                    if (products.length === 0) {
+                        productsContainer.innerHTML = '<p>Bu kategoride ürün bulunmamaktadır.</p>';
+                        return;
+                    }
+                    
+                    products.forEach(product => {
+                        const productDiv = document.createElement('div');
+                        productDiv.className = 'menu-secenek';
+                        
+                        // Ürün resmi için placeholder belirle
+                        let placeholderUrl;
+                        if (categoryId <= 3) { 
+                            placeholderUrl = `https://via.placeholder.com/100x100?text=${encodeURIComponent(product.ad)}`;
+                        } else {
+                            placeholderUrl = 'https://via.placeholder.com/100x100?text=Resim+Yok';
+                        }
+                        
+                        // Ürün içeriği
+                        productDiv.innerHTML = `
+                            <img src="${product.resim_url || placeholderUrl}" alt="${product.ad}" 
+                                onerror="this.onerror=null; this.src='${placeholderUrl}';">
+                            <div class="item-info">
+                                <span>${product.ad}</span>
+                                <strong id="price-${product.id}">${product.fiyat} TL</strong>
+                                <p>${product.aciklama || ''}</p>
+                                
+                                <div class="edit-price-form" style="display: none;">
+                                    <input type="number" id="new-price-${product.id}" min="1" step="1" value="${product.fiyat}">
+                                    <button type="button" class="update-button" onclick="updatePrice(${product.id})">Güncelle</button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        productsContainer.appendChild(productDiv);
+                    });
+                    
+                    // Görsel yükleme hatalarını yakala
+                    document.querySelectorAll('.menu-secenek img').forEach(img => {
+                        img.addEventListener('error', function() {
+                            console.log('Görsel yüklenirken hata oluştu:', this.src);
+                        });
+                    });
+                    
+                    // Admin durumunu kontrol et
+                    checkAdminStatus();
+                })
+                .catch(error => {
+                    console.error(`Ürünleri yükleme hatası: ${error}`);
+                    document.getElementById(`products-${categoryId}`).innerHTML = 
+                        '<p class="error-message">Ürünler yüklenirken bir hata oluştu.</p>';
+                });
+        }
+        
+        // Fiyat güncelleme
+        function updatePrice(productId) {
+            const newPrice = document.getElementById(`new-price-${productId}`).value;
+            
+            if (!newPrice || isNaN(newPrice) || newPrice <= 0) {
+                showMessage('Lütfen geçerli bir fiyat girin!', 'error');
+                return;
+            }
+            
+            // Fiyat güncelleme isteği gönder
+            fetch(`/api/urun/update/${productId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ fiyat: parseFloat(newPrice) })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Fiyat güncellenirken bir hata oluştu');
+                }
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById(`price-${productId}`).textContent = `${newPrice} TL`;
+                showMessage(`${data.ad} ürününün fiyatı başarıyla güncellendi!`, 'success');
+            })
+            .catch(error => {
+                console.error('Fiyat güncelleme hatası:', error);
+                showMessage('Fiyat güncellenirken bir hata oluştu.', 'error');
+            });
+        }
+        
+        // Mesaj gösterme
+        function showMessage(message, type) {
+            const messagesContainer = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type === 'success' ? 'success-message' : 'error-message';
+            messageDiv.textContent = message;
+            
+            messagesContainer.appendChild(messageDiv);
+            
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 3000);
+        }
+    </script>
+</head>
+<body>
+    <div class="menu">
+        <h1 id="categoryTitle">Kategori</h1>
+        
+        <!-- Mesajlar için alan -->
+        <div id="messages"></div>
+        
+        <!-- Kategori içeriği -->
+        <div id="categoryContent">
+            <p>Yükleniyor...</p>
+        </div>
+        
+        <a href="index.html" class="back-link">← Ana Sayfaya Dön</a>
+    </div>
+</body>
+</html> 
