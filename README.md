@@ -11,7 +11,7 @@ pip install -r requirements.txt
 
 2. Uygulamayı çalıştırın:
 ```
-python main.py
+python main:app
 ```
 
 3. Tarayıcınızda şu adresi açın:
